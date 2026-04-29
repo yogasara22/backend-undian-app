@@ -38,6 +38,13 @@ class SettingController extends Controller
 
         // Jika request body adalah flat JSON object, iterasi tiap key
         foreach ($request->all() as $key => $value) {
+            if (is_array($value)) {
+                $existing = Setting::find($key);
+                if ($existing && is_array($existing->params_value)) {
+                    $value = array_merge($existing->params_value, $value);
+                }
+            }
+            
             Setting::updateOrCreate(
                 ['params_key' => $key],
                 ['params_value' => $value]
