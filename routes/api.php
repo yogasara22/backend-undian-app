@@ -42,4 +42,6 @@ Route::delete('/scheduled-winners/{scheduledWinner}', [ScheduledWinnerController
 // Pengaturan Aplikasi (key-value config)
 Route::get('/settings',       [SettingController::class, 'index']);
 Route::put('/settings',       [SettingController::class, 'update']);
+Route::post('/settings/background-image',   [SettingController::class, 'uploadBackgroundImage']);
+Route::delete('/settings/background-image', [SettingController::class, 'deleteBackgroundImage']);
 Route::get('/settings/{key}', [SettingController::class, 'show']);

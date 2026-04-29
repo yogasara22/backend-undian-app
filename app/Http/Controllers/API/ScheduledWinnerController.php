@@ -15,6 +15,7 @@ class ScheduledWinnerController extends Controller
     public function index()
     {
         $scheduledWinners = ScheduledWinner::with('prize')
+            ->where('is_used', false)
             ->orderBy('priority')
             ->orderBy('created_at')
             ->get()

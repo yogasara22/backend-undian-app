@@ -15,8 +15,7 @@ class LotteryService
         return DB::transaction(function () {
 
             // 1. Cek antrian scheduled winners (FIFO berdasarkan priority & created_at)
-            $scheduled = ScheduledWinner::where('is_used', false)
-                ->orderBy('priority')
+            $scheduled = ScheduledWinner::orderBy('priority')
                 ->orderBy('created_at')
                 ->lockForUpdate()
                 ->first();
@@ -26,10 +25,18 @@ class LotteryService
                 $participant = Participant::where('nik', $scheduled->nik)
                     ->lockForUpdate()
                     ->first();
-
+                
                 if (! $participant) {
                     throw new \Exception(
                         "Peserta dengan NIK {$scheduled->nik} (pemenang terjadwal) tidak ditemukan di database."
+                    );
+                }
+
+                if ($participant->winners()->exists()) {
+                    // Hapus dari antrian jika sudah pernah menang (mencegah loop/error terus menerus)
+                    $scheduled->delete();
+                    throw new \Exception(
+                        "Peserta {$participant->name} ({$scheduled->nik}) sudah pernah menang sebelumnya. Antrian manipulasi dihapus."
                     );
                 }
 
@@ -39,8 +46,8 @@ class LotteryService
                     throw new \Exception('Hadiah untuk pemenang terjadwal tidak ditemukan.');
                 }
 
-                // Tandai scheduled winner sebagai sudah digunakan
-                $scheduled->update(['is_used' => true]);
+                // Hapus scheduled winner agar tidak muncul lagi di antrian manipulasi
+                $scheduled->delete();
 
             } else {
                 // 2. Undian acak: pilih peserta yang BELUM PERNAH menang
