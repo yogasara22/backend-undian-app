@@ -10,15 +10,21 @@ use Illuminate\Support\Facades\DB;
 
 class LotteryService
 {
-    public function draw(): array
+    public function draw(?int $prizeId = null): array
     {
-        return DB::transaction(function () {
+        return DB::transaction(function () use ($prizeId) {
 
             // 1. Cek antrian scheduled winners (FIFO berdasarkan priority & created_at)
-            $scheduled = ScheduledWinner::orderBy('priority')
+            $scheduledQuery = ScheduledWinner::orderBy('priority')
                 ->orderBy('created_at')
-                ->lockForUpdate()
-                ->first();
+                ->lockForUpdate();
+            
+            // Jika ada specific prizeId, cari antrian yang sesuai hadiah tersebut
+            if ($prizeId) {
+                $scheduledQuery->where('prize_id', $prizeId);
+            }
+
+            $scheduled = $scheduledQuery->first();
 
             if ($scheduled) {
                 // Ambil peserta berdasarkan NIK dari scheduled winner
@@ -60,18 +66,31 @@ class LotteryService
                     throw new \Exception('Semua peserta sudah pernah menang. Tidak ada peserta tersisa.');
                 }
 
-                // 3. Pilih hadiah yang masih tersedia (stok > jumlah pemenang)
-                $prize = Prize::whereRaw('qty > (SELECT COUNT(*) FROM winners WHERE winners.prize_id = prizes.id)')
-                    ->lockForUpdate()
-                    ->inRandomOrder()
-                    ->first();
+                // 3. Pilih hadiah
+                if ($prizeId) {
+                    // Cek ketersediaan stok hadiah yang di-request
+                    $prize = Prize::where('id', $prizeId)
+                        ->whereRaw('qty > (SELECT COUNT(*) FROM winners WHERE winners.prize_id = prizes.id)')
+                        ->lockForUpdate()
+                        ->first();
 
-                if (! $prize) {
-                    throw new \Exception('Tidak ada hadiah yang tersisa untuk diundi.');
+                    if (! $prize) {
+                        throw new \Exception('Hadiah yang dipilih sudah habis atau tidak ditemukan.');
+                    }
+                } else {
+                    // Default behavior (acak dari yang tersedia)
+                    $prize = Prize::whereRaw('qty > (SELECT COUNT(*) FROM winners WHERE winners.prize_id = prizes.id)')
+                        ->lockForUpdate()
+                        ->inRandomOrder()
+                        ->first();
+
+                    if (! $prize) {
+                        throw new \Exception('Tidak ada hadiah yang tersisa untuk diundi.');
+                    }
                 }
             }
 
-            // 4. Validasi stok hadiah
+            // 4. Validasi stok hadiah (Safety check)
             if ($prize->remaining_qty <= 0) {
                 throw new \Exception("Stok hadiah '{$prize->name}' sudah habis.");
             }

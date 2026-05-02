@@ -7,10 +7,11 @@ use App\Services\LotteryService;
 
 class LotteryController extends Controller
 {
-    public function draw(LotteryService $service)
+    public function draw(\Illuminate\Http\Request $request, LotteryService $service)
     {
         try {
-            $result = $service->draw();
+            $prizeId = $request->input('prize_id');
+            $result = $service->draw($prizeId ? (int)$prizeId : null);
 
             return response()->json([
                 'success' => true,
